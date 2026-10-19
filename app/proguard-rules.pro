@@ -1,0 +1,2 @@
+-dontwarn androidx.camera.**
+-keep class androidx.camera.** { *; }
