@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write   # 需要写权限把 APK 挂到 latest release
+
 jobs:
   build:
     # 固定 24.04：ubuntu-latest 今天（2026-10-19）开始迁移到 Ubuntu 26，
@@ -99,3 +102,20 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 30
+
+      # 固定下载地址：/releases/download/latest/app-debug.apk
+      # 每次构建覆盖同一个 latest release，不用再进 Actions 页面找 Artifacts
+      - name: Publish to latest release
+        if: success() && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          APK=$(ls app/build/outputs/apk/debug/*.apk | head -1)
+          gh release view latest >/dev/null 2>&1 || \
+            gh release create latest \
+              --title "最新构建" \
+              --notes "由 GitHub Actions 自动构建，提交 ${GITHUB_SHA:0:7}" \
+              --latest
+          gh release upload latest "$APK" --clobber
+          echo "### APK: https://github.com/${{ github.repository }}/releases/download/latest/$(basename "$APK")" >> "$GITHUB_STEP_SUMMARY"

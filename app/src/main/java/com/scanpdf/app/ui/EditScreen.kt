@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,10 +22,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -49,6 +49,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -125,7 +126,7 @@ fun EditScreen(startIndex: Int, onBack: () -> Unit) {
     var errorText by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
     var ordering by remember { mutableStateOf(false) }
-    var cropBusy by remember { mutableStateOf(false) }
+    var cropEditing by remember { mutableStateOf(false) }
     var ocrBusy by remember { mutableStateOf(false) }
     var showOcr by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -152,26 +153,6 @@ fun EditScreen(startIndex: Int, onBack: () -> Unit) {
         if (ShareHelper.sharePdf(ctx, file, pkg)) return
         if (pkg != null && ShareHelper.sharePdf(ctx, file, null)) return
         Toast.makeText(ctx, "分享失败，请确认已安装对应应用", Toast.LENGTH_SHORT).show()
-    }
-
-    fun toggleCrop(on: Boolean) {
-        if (!on) {
-            page.cropEnabled = false
-            return
-        }
-        if (page.quad != null) {
-            page.cropEnabled = true
-            return
-        }
-        if (cropBusy) return
-        cropBusy = true
-        scope.launch {
-            val ok = ScanStore.detectCrop(page, force = true)
-            cropBusy = false
-            if (!ok) {
-                Toast.makeText(ctx, "未检测到纸张边缘，保持整页", Toast.LENGTH_SHORT).show()
-            }
-        }
     }
 
     fun runOcr() {
@@ -234,7 +215,7 @@ fun EditScreen(startIndex: Int, onBack: () -> Unit) {
                 }
                 TextButton(onClick = { ordering = true }) { Text("页序") }
                 IconButton(onClick = { confirmDelete = true }) {
-                    Icon(Icons.Default.DeleteOutline, contentDescription = "删除本页", tint = InkSub)
+                    Icon(Icons.Default.Delete, contentDescription = "删除本页", tint = InkSub)
                 }
             }
 
@@ -273,14 +254,14 @@ fun EditScreen(startIndex: Int, onBack: () -> Unit) {
                     )
                 }
 
-                if (cropBusy || ocrBusy) {
+                if (ocrBusy) {
                     Surface(
                         color = Color.Black.copy(alpha = 0.6f),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.align(Alignment.Center)
                     ) {
                         Text(
-                            if (cropBusy) "正在检测纸张边缘…" else "正在识别文字…",
+                            "正在识别文字…",
                             color = Color.White,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
@@ -306,6 +287,8 @@ fun EditScreen(startIndex: Int, onBack: () -> Unit) {
             Column(
                 Modifier
                     .fillMaxWidth()
+                    .heightIn(max = 330.dp)
+                    .verticalScroll(rememberScrollState())
                     .background(Color.White)
                     .padding(top = 6.dp, bottom = 2.dp)
             ) {
@@ -362,29 +345,50 @@ fun EditScreen(startIndex: Int, onBack: () -> Unit) {
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-                // 裁边 + OCR
+                // 边缘校正（手动四角）+ OCR
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("边缘校正", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text(
+                            when {
+                                !page.cropEnabled -> "未启用，按整页输出"
+                                page.quad == null -> "尚未设置四角"
+                                else -> "已按四点校正"
+                            },
+                            fontSize = 11.sp,
+                            color = InkSub
+                        )
+                    }
+                    TextButton(onClick = { cropEditing = true }) { Text("调整四点") }
+                    Switch(
+                        checked = page.cropEnabled,
+                        onCheckedChange = { page.cropEnabled = it }
+                    )
+                }
+
                 Row(
                     Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("自动裁边", fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        when {
-                            !page.cropEnabled -> "整页"
-                            page.quad == null -> "未检测到边缘"
-                            else -> "已校正"
-                        },
-                        fontSize = 11.sp,
-                        color = InkSub
-                    )
-                    Switch(
-                        checked = page.cropEnabled,
-                        onCheckedChange = { toggleCrop(it) }
-                    )
-                    Spacer(Modifier.weight(1f))
+                    Column(Modifier.weight(1f)) {
+                        Text("文字识别", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text(
+                            when {
+                                ocrBusy -> "正在识别…"
+                                page.ocr == null -> "未识别（可选）"
+                                else -> "${page.ocr!!.lines.size} 行 · 导出后可搜索"
+                            },
+                            fontSize = 11.sp,
+                            color = InkSub
+                        )
+                    }
                     TextButton(
                         onClick = {
                             if (page.ocr != null) showOcr = true else runOcr()
@@ -401,20 +405,51 @@ fun EditScreen(startIndex: Int, onBack: () -> Unit) {
                     }
                 }
 
+                // 输出模式：彩色 / 黑白
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("输出", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.width(10.dp))
+                    ModeChip("彩色", selected = !adj.gray) {
+                        page.adjustments = page.adjustments.copy(gray = false)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    ModeChip("黑白", selected = adj.gray) {
+                        page.adjustments = page.adjustments.copy(gray = true)
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        when {
+                            adj.isIdentity -> "原图直出"
+                            adj.thresholdOn -> "二值化"
+                            adj.gray -> "灰度"
+                            else -> "彩色 + 校正"
+                        },
+                        fontSize = 11.sp,
+                        color = InkSub
+                    )
+                }
+
                 Row(
                     Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    TextButton(onClick = {
+                        page.adjustments = Adjustments(
+                            gray = false, deGray = 0, contrast = 0,
+                            thresholdOn = false, threshold = adj.threshold
+                        )
+                    }) { Text("原图") }
                     TextButton(onClick = { page.adjustments = Adjustments() }) { Text("重置") }
                     TextButton(onClick = { ScanStore.applyToAll(page.adjustments) }) {
                         Text("应用到全部页")
                     }
-                    Spacer(Modifier.weight(1f))
-                    TextButton(onClick = {
-                        page.adjustments = page.adjustments.copy(gray = !page.adjustments.gray)
-                    }) { Text(if (adj.gray) "灰度输出" else "彩色输出") }
                 }
             }
 
@@ -442,12 +477,6 @@ fun EditScreen(startIndex: Int, onBack: () -> Unit) {
                 }
                 Spacer(Modifier.weight(1f))
                 Button(onClick = { exportPdf() }, enabled = !exporting) {
-                    Icon(
-                        Icons.Default.PictureAsPdf,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
                     Text("导出 PDF")
                 }
             }
@@ -457,6 +486,22 @@ fun EditScreen(startIndex: Int, onBack: () -> Unit) {
         if (ordering) {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 PageOrderScreen(onBack = { ordering = false })
+            }
+        }
+
+        // ---------- 手动边缘校正覆盖层 ----------
+        if (cropEditing) {
+            Surface(Modifier.fillMaxSize(), color = Color(0xFF11151A)) {
+                CropEditorScreen(
+                    file = page.file,
+                    initial = page.quad,
+                    onCancel = { cropEditing = false },
+                    onConfirm = { q ->
+                        page.quad = q
+                        page.cropEnabled = true
+                        cropEditing = false
+                    }
+                )
             }
         }
     }
@@ -591,6 +636,26 @@ fun EditScreen(startIndex: Int, onBack: () -> Unit) {
 }
 
 @Composable
+private fun ModeChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    val bg = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+    val fg = if (selected) Color.White else InkSub
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(bg)
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 6.dp)
+    ) {
+        Text(
+            text,
+            fontSize = 12.sp,
+            color = fg,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+        )
+    }
+}
+
+@Composable
 private fun SliderRow(
     title: String,
     valueText: String,
@@ -662,8 +727,9 @@ private object WarpCache {
     }
 
     suspend fun load(src: Bitmap, quad: Quad, file: File): Bitmap = withContext(Dispatchers.Default) {
-        val key = file.absolutePath + "#" + quad.tl.x + "," + quad.tl.y +
-                "," + quad.br.x + "," + quad.br.y
+        val key = file.absolutePath + "#" + quad.points().joinToString(",") {
+            "${(it.x * 1000).toInt()}/${(it.y * 1000).toInt()}"
+        }
         val cached = synchronized(map) { map[key] }
         if (cached != null && !cached.isRecycled) return@withContext cached
 

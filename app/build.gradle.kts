@@ -12,10 +12,10 @@ android {
         applicationId = "com.scanpdf.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
 
-        // Compose + material-icons-extended 方法数已超 64K，minSdk 24 走原生 multidex；
+        // Compose + ML Kit 方法数已超 64K，minSdk 24 走原生 multidex；
         // 显式打开，避免个别 AGP 版本在 debug 变体上忘记开启导致运行期 NoClassDefFoundError。
         multiDexEnabled = true
     }
@@ -75,7 +75,8 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-extended")
+    // 只用基础图标集（约 1MB）；icons-extended 会白白塞进 6MB 未用图标
+    implementation("androidx.compose.material:material-icons-core")
 
     val cameraX = "1.3.4"
     implementation("androidx.camera:camera-core:$cameraX")

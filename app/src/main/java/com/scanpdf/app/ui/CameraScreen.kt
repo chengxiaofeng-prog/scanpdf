@@ -36,16 +36,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FlashOff
-import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -256,11 +253,11 @@ fun CameraScreen(onOpenEditor: (Int) -> Unit) {
                     fontSize = 11.sp
                 )
             }
-            IconButton(onClick = { flashOn = !flashOn }) {
-                Icon(
-                    imageVector = if (flashOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
-                    contentDescription = "闪光灯",
-                    tint = Color.White
+            TextButton(onClick = { flashOn = !flashOn }) {
+                Text(
+                    if (flashOn) "闪光灯 开" else "闪光灯 关",
+                    color = if (flashOn) Color(0xFFFFD666) else Color.White,
+                    fontSize = 12.sp
                 )
             }
         }
@@ -317,15 +314,16 @@ fun CameraScreen(onOpenEditor: (Int) -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    IconToggleButton(checked = burst, onCheckedChange = { burst = it }) {
-                        Icon(
-                            imageVector = Icons.Default.Timer,
-                            contentDescription = "连拍",
-                            tint = if (burst) BrandBlue else Color.White
+                    TextButton(onClick = { burst = !burst }) {
+                        Text(
+                            if (burst) "连拍中" else "连拍",
+                            color = if (burst) BrandBlue else Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = if (burst) FontWeight.SemiBold else FontWeight.Normal
                         )
                     }
                     Text(
-                        if (burst) "连拍中" else "连拍",
+                        if (burst) "点击停止" else "定时连拍",
                         color = Color.White.copy(alpha = 0.85f),
                         fontSize = 10.sp
                     )

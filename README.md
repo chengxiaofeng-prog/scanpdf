@@ -1,19 +1,20 @@
 # 扫描成文（ScanPdf）
 
-连续拍照 → 自动裁边 + 透视校正 → 去底灰 / 对比度 / 阈值 → OCR → 合成 PDF → 微信/QQ 分享。
+连续拍照 → **手动四点校正 + 透视拉正** → 去底灰 / 对比度 / 阈值（全部可选）→ 彩色或黑白输出 → OCR → 合成 PDF → 微信/QQ 分享。
 
-Android 原生实现：Kotlin + Jetpack Compose + CameraX + ML Kit，**不依赖 OpenCV**（裁边与透视校正为纯 Kotlin 实现）。
+Android 原生实现：Kotlin + Jetpack Compose + CameraX + ML Kit，**不依赖 OpenCV**（四角校正与透视变换为纯 Kotlin 实现）。
 
 ## 一、功能
 
 | 模块   | 能力                                                    |
 | ---- | ----------------------------------------------------- |
 | 连续拍照 | 快门后**不退出相机**，页数持续累加；"连拍"每 0.8–5s 自动拍；缩略图条回看任意页        |
-| 自动裁边 | 拍照后台自动检测纸张四角（Hough + Otsu），检测到就默认裁切；可一键关掉回到整页         |
-| 透视校正 | 四角求交后做单应变换（Heckbert + 双线性逆向采样），斜拍也能拉正                 |
-| 去底灰  | 0–100%，大半径背景估计 + 平场校正，灰纸拉成白底                          |
+| 边缘校正 | **手动拖动四个圆点**对齐纸张四角（误差可控），再按四点做透视拉正；自动检测只作为初始值，可一键整页 |
+| 透视校正 | 四点求交后做单应变换（Heckbert + 双线性逆向采样），斜拍也能拉正                 |
+| 输出色彩 | **默认彩色**，可逐页切黑白；"原图"按钮三参数全部归零，直出未处理照片             |
+| 去底灰  | 0–100%，大半径背景估计 + 平场校正，灰纸拉成白底（彩色模式下按通道保色）           |
 | 对比度  | 0–100%，绕中灰 128 线性拉伸（斜率 1–3），256 项 LUT                 |
-| 阈值   | 开关 + 0–255，二值化为纯黑白                                    |
+| 阈值   | 开关 + 0–255，二值化为纯黑白（可选，默认关闭）                          |
 | OCR  | 离线中文识别（ML Kit），可查看 / 复制全文；导出时自动叠加**隐形文字层**，PDF 可搜索可复制 |
 | 页序重排 | "页序"入口，长按拖动，松手落位                                      |
 | PDF  | A4 版式（1240×1754 ≈150dpi），多页合成单个文件                     |
@@ -52,6 +53,12 @@ bash push-to-github.sh scanpdf
 > workflow 用 `gradle/actions/setup-gradle@v4` 固定 Gradle 8.7 构建，**不依赖 `gradle-wrapper.jar`**（二进制文件不便随源码携带）。  
 > 首次构建成功后，Actions 里会额外产出一个 `gradle-wrapper` artifact，下载解压到工程根目录后即可用 `./gradlew` 在本地构建。
 
+**固定下载地址**（每次推送后自动覆盖，不用再翻 Artifacts）：
+
+```
+https://github.com/chengxiaofeng-prog/scanpdf/releases/download/latest/app-debug.apk
+```
+
 ## 三、本地编译
 
 **Android Studio（Koala 2024.1+）**：`File > Open` 选本目录 → 首次 Sync 联网拉依赖 → `Run ▶`。  
@@ -78,7 +85,8 @@ ScanPdf/
 ├─ app/src/main/java/com/scanpdf/app/
 │  ├─ MainActivity.kt              入口 + 两页导航
 │  ├─ ui/CameraScreen.kt           CameraX 预览、单拍、连拍、拍照后自动裁边
-│  ├─ ui/EditScreen.kt             参数面板、裁边开关、OCR、导出、分享
+│  ├─ ui/EditScreen.kt             参数面板、彩色/黑白、四点校正入口、OCR、导出、分享
+│  ├─ ui/CropEditorScreen.kt       ★ 手动四点对齐编辑器（拖拽 + 自动初始值）
 │  ├─ ui/PageOrderScreen.kt        长按拖拽重排页序
 │  ├─ ui/theme/Theme.kt            配色
 │  ├─ doc/Quad.kt                  四角点模型 + 合理性校验
@@ -130,7 +138,8 @@ ScanPdf/
 | 报错                                                                | 原因                        | 处理                                                                                    |
 | ----------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------- |
 | `Could not find com.google.mlkit:text-recognition-chinese:16.0.0` | 依赖版本在镜像里缺失                | 改为 `16.0.0-beta6`，或换回 `text-recognition:16.0.0`（纯拉丁）                                  |
-| `Failed to find platform android-34` / `licenses not accepted`    | runner 缺 SDK 平台           | workflow 已加 `android-actions/setup-android@v3`；本地则用 SDK Manager 装 Android 14 (API 34) |
+| `Failed to find platform android-34` / `licenses not accepted`    | runner 缺 SDK 平台           | workflow 用 `sdkmanager --licenses` 并补装 `platforms;android-34`；本地用 SDK Manager 装 Android 14 (API 34) |
+| `Unresolved reference: Icons.Default.Xxx`                         | 图标不在 core 集合里            | 本工程只用 `material-icons-core`；换成 core 里已有的图标，或加 `material-icons-extended`（+6MB） |
 | `Unresolved reference: kotlinOptions`                             | Kotlin 插件未生效              | 确认根 `build.gradle.kts` 里 `org.jetbrains.kotlin.android` 版本与 compose 插件版本一致（均 2.0.21）  |
 | `Inconsistent JVM-target compatibility (17 vs 1.8)`               | Kotlin/Java 目标不一致         | 已同时设 `compileOptions` 与 `kotlinOptions.jvmTarget = "17"`，不要再单改一处                      |
 | `GradleWrapperMain not found`                                     | 仓库没有 `gradle-wrapper.jar` | CI 里不用 `./gradlew`；本地从 Actions 的 `gradle-wrapper` artifact 取回 jar                     |
@@ -139,7 +148,8 @@ ScanPdf/
 
 ## 七、已知限制
 
-- 裁边为全自动，**不做手动拉角**；极端光照/低对比纸面可能检测失败（此时保持整页）
+- 四角为**手动拖动**；自动检测（Hough）只用作初始值，光斑/阴影/低对比时可能给不准，需手动微调
+- 输出默认彩色；黑白需手动切换，阈值开关会强制二值化（彩色模式下同样生效）
 - OCR 只处理当前页的预览分辨率图；裁边开关切换后需重新识别（行框会变）
 - PDF 主层仍是图片，文字层仅用于检索；扫描件本身不做矢量化
 - 页序拖拽为"松手落位"，没有实时插入动画

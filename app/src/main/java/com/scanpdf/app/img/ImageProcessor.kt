@@ -11,13 +11,13 @@ import kotlin.math.min
  * 顺序颠倒会把纸张底灰"焊死"在图里，所以不允许调换。
  */
 data class Adjustments(
-    /** 输出灰度（关闭则保留彩色） */
-    val gray: Boolean = true,
+    /** 输出灰度；默认 false 保留原色，需要纯黑白文档时再手动切 */
+    val gray: Boolean = false,
     /** 去底灰强度 0..100 */
-    val deGray: Int = 60,
+    val deGray: Int = 50,
     /** 对比度 0..100 */
-    val contrast: Int = 25,
-    /** 是否启用阈值（二值化） */
+    val contrast: Int = 20,
+    /** 是否启用阈值（二值化，会把彩色压成纯黑白） */
     val thresholdOn: Boolean = false,
     /** 阈值 0..255，越小越黑 */
     val threshold: Int = 160

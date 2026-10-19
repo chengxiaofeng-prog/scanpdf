@@ -18,7 +18,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -142,7 +142,7 @@ fun PageOrderScreen(onBack: () -> Unit) {
                                 color = InkSub
                             )
                         }
-                        Icon(Icons.Default.DragHandle, contentDescription = "拖动", tint = InkSub)
+                        Icon(Icons.Default.Menu, contentDescription = "拖动", tint = InkSub)
                     }
                 }
             }
