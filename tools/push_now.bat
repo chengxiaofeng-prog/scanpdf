@@ -65,13 +65,15 @@ rem ---------- 2. remote ----------
 "!GIT!" remote remove origin >nul 2>nul
 "!GIT!" remote add origin https://github.com/chengxiaofeng-prog/scanpdf.git
 
-rem ---------- 3. does the remote already have commits? ----------
-set REMOTE_HEAD=
-for /f "delims=" %%H in ('"!GIT!" ls-remote --heads origin main 2^>nul') do set REMOTE_HEAD=%%H
+rem ---------- 3. is a force push really needed? ----------
+rem fast-forward (remote is an ancestor of local) -> normal push, no question asked
 set FORCE=
-if defined REMOTE_HEAD (
+"!GIT!" fetch --quiet --no-tags origin main >nul 2>nul
+"!GIT!" merge-base --is-ancestor origin/main HEAD >nul 2>nul
+if errorlevel 1 (
     echo.
-    echo [!] the remote already has commits - most likely a README was created.
+    echo [warn] the remote has commits that are NOT in your local copy
+    echo     - likely files uploaded through the GitHub web page.
     echo     Pushing will REPLACE them with the local project.
     set /p OVERWRITE=Type Y to overwrite, or press Enter to cancel: 
     if /i not "!OVERWRITE!"=="Y" (
@@ -92,7 +94,7 @@ echo.
 
 if errorlevel 1 (
     echo.
-    echo [!] first attempt failed - retrying with certificate revocation check off ...
+    echo [warn] first attempt failed - retrying with certificate revocation check off ...
     echo     (needed on some campus / corporate networks)
     echo.
     "!GIT!" -c http.schannelCheckRevoke=false push -u origin main !FORCE!
