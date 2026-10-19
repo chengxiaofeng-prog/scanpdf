@@ -8,8 +8,10 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 固定 24.04：ubuntu-latest 今天（2026-10-19）开始迁移到 Ubuntu 26，
+    # 新镜像里的 Android SDK 路径可能变，第一次构建先不要踩这个变量
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,11 +22,29 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # 提前装好 Android SDK 并接受 licenses，避免 AGP 在构建中途因缺 android-34 平台而失败
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # 不再使用 android-actions/setup-android@v3：
+      # 该 action 被强制跑在 Node 24 上，会在启动阶段直接失败（第 1 次构建就挂在这里）。
+      # runner 镜像本身已预装 Android SDK，这里只接受 licenses 并补齐 API 34。
+      - name: Prepare Android SDK
+        run: |
+          set -u
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          echo "SDK path: $SDK"
+          ls "$SDK" || true
+          SM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SM" ]; then
+            yes | "$SM" --licenses > /dev/null 2>&1 || true
+            "$SM" --install "platforms;android-34" "build-tools;34.0.0" > /dev/null 2>&1 || true
+            echo "--- installed packages ---"
+            "$SM" --list_installed 2>/dev/null | head -30 || true
+          else
+            echo "::warning::sdkmanager not found at $SM - relying on AGP SDK auto-download"
+            ls "$SDK/cmdline-tools" 2>/dev/null || true
+          fi
 
-      # 工程未携带 gradle-wrapper.jar，这里直接用固定版本 Gradle 构建
+      # 工程未携带 gradle-wrapper.jar，这里用固定版本 Gradle 构建
       - name: Set up Gradle 8.7
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -35,7 +55,7 @@ jobs:
           java -version
           gradle --version
           echo "ANDROID_HOME=$ANDROID_HOME"
-          ls "$ANDROID_HOME/platforms" || true
+          ls "$ANDROID_HOME/platforms" 2>/dev/null || true
 
       - name: Build debug APK
         run: gradle :app:assembleDebug --no-daemon --stacktrace --warning-mode all
@@ -51,7 +71,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      # 顺手把 wrapper 生成出来，方便你在本地 ./gradlew 构建（本仓库不便携带二进制）
+      # 顺手把 wrapper 生成出来，方便在本地 ./gradlew 构建（本仓库不便携带二进制）
       - name: Generate gradle wrapper
         if: success()
         run: gradle wrapper --gradle-version 8.7
